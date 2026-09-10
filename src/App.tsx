@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { ChefHat, Loader2, Utensils, Clock, Heart, BookOpen, Globe } from 'lucide-react';
 import type { Recipe } from './types';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI, Type } from "@google/genai";
 
 const t = {
   id: {
@@ -134,26 +135,67 @@ export default function App() {
       return;
     }
 
+    if (!apiKey.trim()) {
+      setError(lang.apiKeyPlaceholder);
+      return;
+    }
+
     setLoading(true);
     setError('');
     setRecipe(null);
 
     try {
-      const response = await fetch('/api/generate-recipe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ingredients, style, apiKey: apiKey.trim() }),
+      const ai = new GoogleGenAI({ 
+        apiKey: apiKey.trim(),
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to generate recipe');
-      }
+      const prompt = `Create a step-by-step recipe based on the following available ingredients: ${ingredients}. 
+      The cooking style should be: ${style || 'Any'}. 
+      IMPORTANT: You MUST generate the recipe in BOTH English (en) and Indonesian (id) simultaneously.
+      Include a recipe name, preparation time, cooking time, a list of precise ingredients, and clear step-by-step instructions.`;
 
-      const data: Recipe = await response.json();
-      setRecipe(data);
+      const translationSchema = {
+        type: Type.OBJECT,
+        properties: {
+          recipeName: { type: Type.STRING, description: "The name of the recipe." },
+          prepTime: { type: Type.STRING, description: "Preparation time (e.g. 15 mins)." },
+          cookTime: { type: Type.STRING, description: "Cooking time (e.g. 30 mins)." },
+          ingredientsList: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of ingredients with quantities." },
+          instructions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Step-by-step cooking instructions." }
+        },
+        required: ["recipeName", "prepTime", "cookTime", "ingredientsList", "instructions"]
+      };
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translations: {
+                type: Type.OBJECT,
+                properties: {
+                  en: translationSchema,
+                  id: translationSchema
+                },
+                required: ["en", "id"]
+              }
+            },
+            required: ["translations"]
+          },
+        },
+      });
+
+      const recipeText = response.text;
+      if (!recipeText) {
+        throw new Error("Failed to generate recipe text.");
+      }
+      
+      const parsedData = JSON.parse(recipeText);
+      parsedData.id = crypto.randomUUID();
+      setRecipe(parsedData);
     } catch (err: any) {
       console.error(err);
       setError(err.message || lang.errorGenerating);
