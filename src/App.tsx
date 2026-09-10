@@ -25,6 +25,8 @@ const t = {
     availableIngredients: 'Bahan yang Tersedia',
     ingredientsPlaceholder: 'mis. dada ayam, nasi, brokoli, kecap...',
     cookingStyle: 'Gaya Memasak',
+    apiKeyLabel: 'Gemini API Key (Opsional)',
+    apiKeyPlaceholder: 'Masukkan API Key Anda...',
     generateRecipe: 'Buat Resep',
     cookingUpIdeas: 'Meracik ide...',
     pleaseEnterIngredients: 'Mohon masukkan beberapa bahan.',
@@ -59,6 +61,8 @@ const t = {
     availableIngredients: 'Available Ingredients',
     ingredientsPlaceholder: 'e.g. chicken breast, rice, broccoli, soy sauce...',
     cookingStyle: 'Cooking Style',
+    apiKeyLabel: 'Gemini API Key (Optional)',
+    apiKeyPlaceholder: 'Enter your API Key...',
     generateRecipe: 'Generate Recipe',
     cookingUpIdeas: 'Cooking up ideas...',
     pleaseEnterIngredients: 'Please enter some ingredients.',
@@ -85,6 +89,7 @@ export default function App() {
 
   const [ingredients, setIngredients] = useState('');
   const [style, setStyle] = useState('Any');
+  const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [error, setError] = useState('');
@@ -139,18 +144,19 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ingredients, style }),
+        body: JSON.stringify({ ingredients, style, apiKey: apiKey.trim() }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate recipe');
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to generate recipe');
       }
 
       const data: Recipe = await response.json();
       setRecipe(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError(lang.errorGenerating);
+      setError(err.message || lang.errorGenerating);
     } finally {
       setLoading(false);
     }
@@ -273,6 +279,20 @@ export default function App() {
                   <h2 className="text-xl font-bold mb-4">{lang.whatsInKitchen}</h2>
                   
                   <div className="space-y-4">
+                    <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+                      <label htmlFor="apiKey" className="block text-sm font-medium text-stone-700 mb-1.5 flex items-center justify-between">
+                        {lang.apiKeyLabel}
+                      </label>
+                      <input
+                        id="apiKey"
+                        type="password"
+                        className="w-full rounded-lg border-stone-300 border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-shadow"
+                        placeholder={lang.apiKeyPlaceholder}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                      />
+                    </div>
+
                     <div>
                       <label htmlFor="ingredients" className="block text-sm font-medium text-stone-700 mb-1.5">
                         {lang.availableIngredients}

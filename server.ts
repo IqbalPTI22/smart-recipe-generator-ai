@@ -10,24 +10,31 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Initialize Gemini
-  const ai = new GoogleGenAI({ 
-    apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      }
-    }
-  });
-
   // API Route for recipe generation
   app.post("/api/generate-recipe", async (req, res) => {
     try {
-      const { ingredients, style } = req.body;
+      const { ingredients, style, apiKey } = req.body;
       
       if (!ingredients) {
         return res.status(400).json({ error: "Ingredients are required" });
       }
+
+      // Use provided key or fallback to environment variable
+      const activeApiKey = apiKey || process.env.GEMINI_API_KEY;
+      
+      if (!activeApiKey) {
+        return res.status(400).json({ error: "Gemini API Key is missing. Please provide one in the UI." });
+      }
+
+      // Initialize Gemini with the active key for this request
+      const ai = new GoogleGenAI({ 
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
 
       const prompt = `Create a step-by-step recipe based on the following available ingredients: ${ingredients}. 
       The cooking style should be: ${style || 'Any'}. 
